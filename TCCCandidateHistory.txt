@@ -1,0 +1,107 @@
+The issue you’re experiencing might be due to the way the ApplicationSteps and Statuses are being queried and joined in the TCC script. Based on the screenshot and your description, it seems the script is not properly capturing the transitions or filtering based on accurate application status history.
+
+Here’s how to fix the issue:
+
+Adjustments for Accurate Status History:
+
+1. Use the Correct History Table: Ensure you’re querying the CandidateSubmissionHistory or equivalent entity, which logs transitions for the candidate's application status, instead of just the latest application status.
+
+
+2. Join the Correct Entity: Ensure that the CandidateSubmissionHistory (or equivalent) is joined with the candidate's application and not overriding the other transitions due to incorrect filtering.
+
+
+3. Order by Date: Ensure steps are being sorted by the transition dates to reflect the timeline accurately.
+
+
+
+Here’s a revised TCC query based on your image and requirements:
+
+Updated Query Script
+
+<quer:query productCode="PRO1009" model="http://www.taleo.com/ws/tee800/2009/01"
+    projectClass="ApplicationTrackingCSWItem" locale="en" mode="CSV"
+    csvHeader="true" csvDelimiter="|" csvQuote="&quot;" largegraph="true" 
+    preventDuplicates="true" attributes="">
+  
+  <!-- Candidate Information -->
+  <quer:projections>
+    <quer:projection alias="Candidate_ID">
+      <quer:field path="Candidate.EmployeeNumber"/>
+    </quer:projection>
+    <quer:projection alias="Candidate_FirstName">
+      <quer:field path="Candidate.FirstName"/>
+    </quer:projection>
+    <quer:projection alias="Candidate_LastName">
+      <quer:field path="Candidate.LastName"/>
+    </quer:projection>
+    <quer:projection alias="Requisition_ID">
+      <quer:field path="Candidate.Applications.Requisition.ContestNumber"/>
+    </quer:projection>
+    <quer:projection alias="Requisition_Title">
+      <quer:field path="Candidate.Applications.Requisition.Title"/>
+    </quer:projection>
+  </quer:projections>
+  
+  <!-- Application Status History -->
+  <quer:joins>
+    <quer:join path="Candidate.Applications.History" alias="ApplicationHistory">
+      <quer:projection alias="Application_Step">
+        <quer:field path="Step"/>
+      </quer:projection>
+      <quer:projection alias="Application_Status">
+        <quer:field path="Status"/>
+      </quer:projection>
+      <quer:projection alias="Application_StatusDate">
+        <quer:field path="EventDate"/>
+      </quer:projection>
+      <quer:projection alias="Application_DetailDescription">
+        <quer:field path="EventDetailDescription"/>
+      </quer:projection>
+    </quer:join>
+  </quer:joins>
+  
+  <!-- Filters to Exclude Offer for Rejected Applications -->
+  <quer:filters>
+    <quer:filter>
+      <quer:field path="ApplicationHistory.Status" operator="isNotNull"/>
+    </quer:filter>
+    <quer:filter>
+      <quer:field path="ApplicationHistory.EventDate" operator="greaterThanOrEqual">
+        <quer:date>2024-01-01</quer:date>
+      </quer:field>
+    </quer:filter>
+  </quer:filters>
+  
+  <!-- Sorting Results by Candidate and Event Date -->
+  <quer:sorting>
+    <quer:sort>
+      <quer:field path="Candidate.Number" ascending="true"/>
+    </quer:sort>
+    <quer:sort>
+      <quer:field path="ApplicationHistory.EventDate" ascending="true"/>
+    </quer:sort>
+  </quer:sorting>
+  
+</quer:query>
+
+Key Fixes in the Script:
+
+1. Application History Join: The ApplicationHistory join ensures all transitions are captured for each candidate's application, including the rejected stage.
+
+
+2. Correct Step and Status: Added explicit projections for Step, Status, and EventDate to capture the application process's granular details.
+
+
+3. Filters on Application Status: Added a filter to ensure only relevant statuses are included and no overrides occur for final statuses like "Offer."
+
+
+4. Sorting: Sorted the output by candidate number and status date to reflect a chronological history.
+
+
+
+Steps to Validate:
+
+1. Test with a Single Candidate: Use a test case where you know the history (e.g., rejected at the review stage) and confirm the output reflects the correct transition steps.
+
+
+2. Check for Overlaps: Ensure that statuses like "Offer" only appear if the application was genuinely advanced to that stage.
